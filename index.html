@@ -61,16 +61,22 @@
   </style>
 </head>
 <body>
-  <h1>Statut des posés-décollés à CYJN</h1>
+  <h1 id="title">Statut des posés-décollés à CYJN</h1>
 
-  <label for="mode">Mode :</label>
+  <label for="language">Langue / Language:</label>
+  <select id="language" onchange="onLanguageChange()">
+    <option value="fr">Français</option>
+    <option value="en">English</option>
+  </select>
+
+  <label id="modeLabel" for="mode">Mode :</label>
   <select id="mode" onchange="onModeChange()">
     <option value="real">Temps réel</option>
     <option value="custom">Date/heure personnalisée</option>
   </select>
 
   <div id="customTimeControls" style="display: none;">
-    <label for="customDateTime">Sélectionnez une date et une heure :</label>
+    <label id="datetimeLabel" for="customDateTime">Sélectionnez une date et une heure :</label>
     <input type="datetime-local" id="customDateTime" onchange="updateDashboardFromInput()">
   </div>
 
@@ -84,10 +90,53 @@
       "2025-12-25", "2025-12-26"
     ];
 
-    // ⬇️ Starting Sunday for "un dimanche sur deux"
-    const firstActiveSunday = new Date(2025, 3, 13); // April 13, 2025 (month is 0-indexed)
-
+    const firstActiveSunday = new Date(2025, 3, 13); // April 13, 2025
     let autoRefreshInterval = null;
+
+    function getLangFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const lang = params.get('lang');
+      return (lang === 'en' || lang === 'fr') ? lang : 'fr';
+    }
+
+    let currentLang = getLangFromURL();
+
+    const messages = {
+      fr: {
+        title: "Statut des posés-décollés à CYJN",
+        modeLabel: "Mode :",
+        datetimeLabel: "Sélectionnez une date et une heure :",
+        real: "Temps réel",
+        custom: "Date/heure personnalisée",
+        permitted: "✅ Les circuits sont permis en ce moment.",
+        notPermitted: "⛔️ Les circuits sont INTERDITS en ce moment.",
+        holidays: "Aujourd'hui est un jour férié au Québec, durant la période de restriction. Les circuits sont interdits toute la journée.",
+        noRestriction: "Aucune restriction aujourd'hui.",
+        outOfSeason: "Aucune restriction aujourd'hui (hors période du 1er mai au 15 octobre).",
+        monThu: "Aujourd'hui, les circuits sont interdits avant 8 h et après 22 h.",
+        friSat: "Aujourd'hui, les circuits sont interdits avant 8 h et après 17 h.",
+        sundaySummer: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
+        sundayAllowed: "Aujourd'hui est un dimanche autorisé pour les circuits, mais seulement entre 10 h et 17 h.",
+        sundayProhibited: "Aujourd'hui est un dimanche sans circuits (1 dimanche sur 2)."
+      },
+      en: {
+        title: "Touch-and-Go Restrictions at CYJN",
+        modeLabel: "Mode:",
+        datetimeLabel: "Select a date and time:",
+        real: "Real-time",
+        custom: "Custom date/time",
+        permitted: "✅ Circuits are allowed right now.",
+        notPermitted: "⛔️ Circuits are NOT ALLOWED right now.",
+        holidays: "Today is a public holiday in Québec during the restriction period. Circuits are not allowed all day.",
+        noRestriction: "No restrictions today.",
+        outOfSeason: "No restrictions today (outside May 1 to October 15).",
+        monThu: "Today, circuits are prohibited before 8 a.m. and after 10 p.m.",
+        friSat: "Today, circuits are prohibited before 8 a.m. and after 5 p.m.",
+        sundaySummer: "Today (Sunday between July 1 and August 15), circuits are not allowed all day.",
+        sundayAllowed: "Today is a Sunday when circuits are allowed, but only between 10 a.m. and 5 p.m.",
+        sundayProhibited: "Today is a Sunday with no circuits (every other Sunday)."
+      }
+    };
 
     function formatDateKey(date) {
       return date.toISOString().split("T")[0];
@@ -115,92 +164,54 @@
 
       const isRestrictedSeason = isBetween(today, 5, 1, 10, 15);
       const isHoliday = quebecHolidays2025.includes(dateKey);
+      const msg = messages[currentLang];
 
       if (isRestrictedSeason && isHoliday) {
-        return {
-          message: "Aujourd'hui est un jour férié au Québec, durant la période de restriction. Les circuits sont interdits toute la journée.",
-          color: "orange",
-          current: true
-        };
+        return { message: msg.holidays, color: "orange", current: true };
       }
 
       if (!isRestrictedSeason) {
-        return {
-          message: "Aucune restriction aujourd'hui (hors période du 1er mai au 15 octobre).",
-          color: "green",
-          current: false
-        };
+        return { message: msg.outOfSeason, color: "green", current: false };
       }
 
       if (day >= 1 && day <= 4) {
         const current = (time < 8 || time > 22);
-        return {
-          message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 22 h.",
-          color: "orange",
-          current
-        };
+        return { message: msg.monThu, color: "orange", current };
       }
 
       if (day === 5 || day === 6) {
         const current = (time < 8 || time > 17);
-        return {
-          message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 17 h.",
-          color: "orange",
-          current
-        };
+        return { message: msg.friSat, color: "orange", current };
       }
 
       if (day === 0 && isBetween(today, 7, 1, 8, 15)) {
-        return {
-          message: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
-          color: "orange",
-          current: true
-        };
+        return { message: msg.sundaySummer, color: "orange", current: true };
       }
 
       if (day === 0 && (isBetween(today, 5, 1, 6, 30) || isBetween(today, 8, 16, 10, 15))) {
         if (isEvenSunday(today)) {
           const current = (time < 10 || time > 17);
-          return {
-            message: "Aujourd'hui est un dimanche autorisé pour les circuits, mais seulement entre 10 h et 17 h.",
-            color: "orange",
-            current
-          };
+          return { message: msg.sundayAllowed, color: "orange", current };
         } else {
-          return {
-            message: "Aujourd'hui est un dimanche sans circuits (1 dimanche sur 2).",
-            color: "orange",
-            current: true
-          };
+          return { message: msg.sundayProhibited, color: "orange", current: true };
         }
       }
 
-      return {
-        message: "Aucune restriction aujourd'hui.",
-        color: "green",
-        current: false
-      };
+      return { message: msg.noRestriction, color: "green", current: false };
     }
 
     function updateDashboard(dateOverride = null) {
       const now = dateOverride || new Date();
       const restriction = getRestrictions(now);
+      const msg = messages[currentLang];
 
-      const descEl = document.getElementById("restrictionDescription");
-      descEl.textContent = `AUJOURD'HUI : ${restriction.message}`;
-      descEl.className = `status ${restriction.color}`;
+      document.getElementById("restrictionDescription").textContent = `TODAY : ${restriction.message}`;
+      document.getElementById("restrictionDescription").className = `status ${restriction.color}`;
 
-      const currentEl = document.getElementById("currentStatus");
-      if (restriction.color === "green") {
-        currentEl.textContent = "✅ Les circuits sont permis en ce moment.";
-        currentEl.className = "status green";
-      } else if (restriction.current) {
-        currentEl.textContent = "⛔️ Les circuits sont INTERDITS en ce moment.";
-        currentEl.className = "status red";
-      } else {
-        currentEl.textContent = "✅ Les circuits sont permis en ce moment.";
-        currentEl.className = "status green";
-      }
+      const currentStatus = restriction.current ? msg.notPermitted : msg.permitted;
+      const statusColor = restriction.current ? "red" : "green";
+      document.getElementById("currentStatus").textContent = currentStatus;
+      document.getElementById("currentStatus").className = `status ${statusColor}`;
     }
 
     function updateDashboardFromInput() {
@@ -226,6 +237,26 @@
       }
     }
 
+    function onLanguageChange() {
+      currentLang = document.getElementById("language").value;
+      const msg = messages[currentLang];
+
+      document.getElementById("title").textContent = msg.title;
+      document.getElementById("modeLabel").textContent = msg.modeLabel;
+      document.getElementById("datetimeLabel").textContent = msg.datetimeLabel;
+
+      const modeSelect = document.getElementById("mode");
+      modeSelect.options[0].textContent = msg.real;
+      modeSelect.options[1].textContent = msg.custom;
+
+      // Update URL
+      const url = new URL(window.location);
+      url.searchParams.set('lang', currentLang);
+      window.history.replaceState({}, '', url);
+
+      updateDashboard();
+    }
+
     function startAutoRefresh() {
       if (autoRefreshInterval) clearInterval(autoRefreshInterval);
       autoRefreshInterval = setInterval(updateDashboard, 60 * 1000);
@@ -238,8 +269,9 @@
       }
     }
 
-    // Initial load
-    updateDashboard();
+    // On load
+    document.getElementById("language").value = currentLang;
+    onLanguageChange();
     startAutoRefresh();
   </script>
 </body>
