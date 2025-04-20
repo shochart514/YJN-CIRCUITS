@@ -2,42 +2,73 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Restrictions CYJN</title>
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      padding: 40px;
-    }
-    .status {
-      font-size: 2rem;
       padding: 20px;
-      margin: 20px auto;
-      max-width: 800px;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .status {
+      font-size: 1.4rem;
+      padding: 1rem;
+      margin: 1rem auto;
+      max-width: 90%;
       border-radius: 10px;
     }
+
     .green { background: #c8f7c5; color: #145214; }
     .orange { background: #ffe3b3; color: #9e6100; }
     .red { background: #f8caca; color: #9e0000; }
-    label, input, button, select {
+
+    label, select, input, button {
       font-size: 1.1rem;
-      margin: 10px;
+      margin: 0.5rem;
+      padding: 0.4rem;
+      width: 90%;
+      max-width: 400px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    @media (min-width: 600px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      .status {
+        font-size: 1.6rem;
+      }
+
+      label, select, input, button {
+        font-size: 1.2rem;
+      }
     }
   </style>
 </head>
 <body>
   <h1>Statut des posés-décollés à CYJN</h1>
 
-  <!-- Mode selector -->
-  <div>
-    <label for="mode">Mode :</label>
-    <select id="mode" onchange="onModeChange()">
-      <option value="real">Temps réel</option>
-      <option value="custom">Date/heure personnalisée</option>
-    </select>
-  </div>
+  <label for="mode">Mode :</label>
+  <select id="mode" onchange="onModeChange()">
+    <option value="real">Temps réel</option>
+    <option value="custom">Date/heure personnalisée</option>
+  </select>
 
-  <!-- Custom time input -->
   <div id="customTimeControls" style="display: none;">
     <label for="customDateTime">Sélectionnez une date et une heure :</label>
     <input type="datetime-local" id="customDateTime" onchange="updateDashboardFromInput()">
@@ -47,15 +78,14 @@
   <div id="currentStatus" class="status"></div>
 
   <script>
-    // List of Québec holidays in 2025
     const quebecHolidays2025 = [
       "2025-01-01", "2025-04-18", "2025-04-21", "2025-05-19", "2025-06-24",
       "2025-07-01", "2025-09-01", "2025-09-30", "2025-10-13", "2025-11-11",
       "2025-12-25", "2025-12-26"
     ];
 
-    // 🟨 CONFIG: First Sunday of "un dimanche sur deux" (active Sunday)
-    const firstActiveSunday = new Date(2025, 4, 4); // May 4, 2025 (month is 0-indexed)
+    // ⬇️ Starting Sunday for "un dimanche sur deux"
+    const firstActiveSunday = new Date(2025, 3, 13); // April 13, 2025 (month is 0-indexed)
 
     let autoRefreshInterval = null;
 
@@ -78,7 +108,7 @@
 
     function getRestrictions(today) {
       const dateKey = formatDateKey(today);
-      const day = today.getDay(); // 0 = Sunday
+      const day = today.getDay();
       const hour = today.getHours();
       const minutes = today.getMinutes();
       const time = hour + minutes / 60;
@@ -102,7 +132,6 @@
         };
       }
 
-      // Monday to Thursday
       if (day >= 1 && day <= 4) {
         const current = (time < 8 || time > 22);
         return {
@@ -112,7 +141,6 @@
         };
       }
 
-      // Friday and Saturday
       if (day === 5 || day === 6) {
         const current = (time < 8 || time > 17);
         return {
@@ -122,7 +150,6 @@
         };
       }
 
-      // Sunday July 1 – Aug 15
       if (day === 0 && isBetween(today, 7, 1, 8, 15)) {
         return {
           message: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
@@ -131,7 +158,6 @@
         };
       }
 
-      // Sunday May–June & Aug 16–Oct 15 (every other Sunday)
       if (day === 0 && (isBetween(today, 5, 1, 6, 30) || isBetween(today, 8, 16, 10, 15))) {
         if (isEvenSunday(today)) {
           const current = (time < 10 || time > 17);
