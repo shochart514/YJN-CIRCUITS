@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Date Time Checker</title>
+</head>
+<body>
+  <h1>Date Time Period Checker</h1>
+
+  <p id="status"></p>
+
+  <script>
+    // Define your period start and end (local time)
+    const periodStart = new Date('2025-04-20T10:00:00');
+    const periodEnd = new Date('2025-04-20T18:00:00');
+
+    const now = new Date();
+
+    const isWithinPeriod = now >= periodStart && now <= periodEnd;
+
+    document.getElementById('status').textContent = 
+      `Current time: ${now.toLocaleString()} — ` +
+      (isWithinPeriod ? '✅ Within the period' : '❌ Outside the period');
+  </script>
+</body>
+</html>
