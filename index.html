@@ -19,14 +19,50 @@
     .green { background: #c8f7c5; color: #145214; }
     .orange { background: #ffe3b3; color: #9e6100; }
     .red { background: #f8caca; color: #9e0000; }
+    label, input, button, select {
+      font-size: 1.1rem;
+      margin: 10px;
+    }
   </style>
 </head>
 <body>
   <h1>Statut des posés-décollés à CYJN</h1>
+
+  <!-- Mode selector -->
+  <div>
+    <label for="mode">Mode :</label>
+    <select id="mode" onchange="onModeChange()">
+      <option value="real">Temps réel</option>
+      <option value="custom">Date/heure personnalisée</option>
+    </select>
+  </div>
+
+  <!-- Custom time input -->
+  <div id="customTimeControls" style="display: none;">
+    <label for="customDateTime">Sélectionnez une date et une heure :</label>
+    <input type="datetime-local" id="customDateTime" onchange="updateDashboardFromInput()">
+  </div>
+
   <div id="restrictionDescription" class="status"></div>
   <div id="currentStatus" class="status"></div>
 
   <script>
+    // List of Québec holidays in 2025
+    const quebecHolidays2025 = [
+      "2025-01-01", "2025-04-18", "2025-04-21", "2025-05-19", "2025-06-24",
+      "2025-07-01", "2025-09-01", "2025-09-30", "2025-10-13", "2025-11-11",
+      "2025-12-25", "2025-12-26"
+    ];
+
+    // 🟨 CONFIG: First Sunday of "un dimanche sur deux" (active Sunday)
+    const firstActiveSunday = new Date(2025, 4, 4); // May 4, 2025 (month is 0-indexed)
+
+    let autoRefreshInterval = null;
+
+    function formatDateKey(date) {
+      return date.toISOString().split("T")[0];
+    }
+
     function isBetween(date, startMonth, startDay, endMonth, endDay) {
       const year = date.getFullYear();
       const start = new Date(year, startMonth - 1, startDay);
@@ -35,47 +71,58 @@
     }
 
     function isEvenSunday(date) {
-      // Reference Sunday (May 5, 2024 was a circuit Sunday)
-      const reference = new Date(2024, 4, 5);
-      const diff = Math.floor((date - reference) / (1000 * 60 * 60 * 24 * 7));
-      return diff % 2 === 0;
+      const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+      const diffWeeks = Math.floor((date - firstActiveSunday) / oneWeekMs);
+      return diffWeeks % 2 === 0;
     }
 
     function getRestrictions(today) {
-      const day = today.getDay(); // 0 = Sunday, 1 = Monday...
+      const dateKey = formatDateKey(today);
+      const day = today.getDay(); // 0 = Sunday
       const hour = today.getHours();
       const minutes = today.getMinutes();
       const time = hour + minutes / 60;
 
       const isRestrictedSeason = isBetween(today, 5, 1, 10, 15);
-      let message = "Aucune restriction aujourd'hui.";
-      let currentRestriction = false;
+      const isHoliday = quebecHolidays2025.includes(dateKey);
 
-      if (!isRestrictedSeason) {
-        return { message, color: "green", current: false };
+      if (isRestrictedSeason && isHoliday) {
+        return {
+          message: "Aujourd'hui est un jour férié au Québec, durant la période de restriction. Les circuits sont interdits toute la journée.",
+          color: "orange",
+          current: true
+        };
       }
 
-      // i. Mon–Thu
+      if (!isRestrictedSeason) {
+        return {
+          message: "Aucune restriction aujourd'hui (hors période du 1er mai au 15 octobre).",
+          color: "green",
+          current: false
+        };
+      }
+
+      // Monday to Thursday
       if (day >= 1 && day <= 4) {
-        if (time < 8 || time > 22) currentRestriction = true;
+        const current = (time < 8 || time > 22);
         return {
           message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 22 h.",
           color: "orange",
-          current: currentRestriction
+          current
         };
       }
 
-      // ii. Fri & Sat
+      // Friday and Saturday
       if (day === 5 || day === 6) {
-        if (time < 8 || time > 17) currentRestriction = true;
+        const current = (time < 8 || time > 17);
         return {
           message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 17 h.",
           color: "orange",
-          current: currentRestriction
+          current
         };
       }
 
-      // iii. Sun July 1 – Aug 15
+      // Sunday July 1 – Aug 15
       if (day === 0 && isBetween(today, 7, 1, 8, 15)) {
         return {
           message: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
@@ -84,14 +131,14 @@
         };
       }
 
-      // iv. Every other Sunday May–June & Aug 16–Oct 15
+      // Sunday May–June & Aug 16–Oct 15 (every other Sunday)
       if (day === 0 && (isBetween(today, 5, 1, 6, 30) || isBetween(today, 8, 16, 10, 15))) {
         if (isEvenSunday(today)) {
-          if (time < 10 || time > 17) currentRestriction = true;
+          const current = (time < 10 || time > 17);
           return {
             message: "Aujourd'hui est un dimanche autorisé pour les circuits, mais seulement entre 10 h et 17 h.",
             color: "orange",
-            current: currentRestriction
+            current
           };
         } else {
           return {
@@ -102,11 +149,15 @@
         }
       }
 
-      return { message, color: "green", current: false };
+      return {
+        message: "Aucune restriction aujourd'hui.",
+        color: "green",
+        current: false
+      };
     }
 
-    function updateDashboard() {
-      const now = new Date();
+    function updateDashboard(dateOverride = null) {
+      const now = dateOverride || new Date();
       const restriction = getRestrictions(now);
 
       const descEl = document.getElementById("restrictionDescription");
@@ -126,8 +177,44 @@
       }
     }
 
+    function updateDashboardFromInput() {
+      const input = document.getElementById("customDateTime").value;
+      if (input) {
+        const selectedDate = new Date(input);
+        updateDashboard(selectedDate);
+      }
+    }
+
+    function onModeChange() {
+      const mode = document.getElementById("mode").value;
+      const customControls = document.getElementById("customTimeControls");
+
+      if (mode === "real") {
+        customControls.style.display = "none";
+        updateDashboard();
+        startAutoRefresh();
+      } else {
+        customControls.style.display = "block";
+        stopAutoRefresh();
+        updateDashboardFromInput();
+      }
+    }
+
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      autoRefreshInterval = setInterval(updateDashboard, 60 * 1000);
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    }
+
+    // Initial load
     updateDashboard();
-    setInterval(updateDashboard, 60 * 1000); // Refresh every minute
+    startAutoRefresh();
   </script>
 </body>
 </html>
