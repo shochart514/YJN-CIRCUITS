@@ -1,26 +1,133 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Date Time Checker</title>
+  <title>Restrictions CYJN</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+    .status {
+      font-size: 2rem;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 800px;
+      border-radius: 10px;
+    }
+    .green { background: #c8f7c5; color: #145214; }
+    .orange { background: #ffe3b3; color: #9e6100; }
+    .red { background: #f8caca; color: #9e0000; }
+  </style>
 </head>
 <body>
-  <h1>Date Time Period Checker</h1>
-
-  <p id="status"></p>
+  <h1>Statut des posés-décollés à CYJN</h1>
+  <div id="restrictionDescription" class="status"></div>
+  <div id="currentStatus" class="status"></div>
 
   <script>
-    // Define your period start and end (local time)
-    const periodStart = new Date('2025-04-20T10:00:00');
-    const periodEnd = new Date('2025-04-20T18:00:00');
+    function isBetween(date, startMonth, startDay, endMonth, endDay) {
+      const year = date.getFullYear();
+      const start = new Date(year, startMonth - 1, startDay);
+      const end = new Date(year, endMonth - 1, endDay);
+      return date >= start && date <= end;
+    }
 
-    const now = new Date();
+    function isEvenSunday(date) {
+      // Reference Sunday (May 5, 2024 was a circuit Sunday)
+      const reference = new Date(2024, 4, 5);
+      const diff = Math.floor((date - reference) / (1000 * 60 * 60 * 24 * 7));
+      return diff % 2 === 0;
+    }
 
-    const isWithinPeriod = now >= periodStart && now <= periodEnd;
+    function getRestrictions(today) {
+      const day = today.getDay(); // 0 = Sunday, 1 = Monday...
+      const hour = today.getHours();
+      const minutes = today.getMinutes();
+      const time = hour + minutes / 60;
 
-    document.getElementById('status').textContent = 
-      `Current time: ${now.toLocaleString()} — ` +
-      (isWithinPeriod ? '✅ Within the period' : '❌ Outside the period');
+      const isRestrictedSeason = isBetween(today, 5, 1, 10, 15);
+      let message = "Aucune restriction aujourd'hui.";
+      let currentRestriction = false;
+
+      if (!isRestrictedSeason) {
+        return { message, color: "green", current: false };
+      }
+
+      // i. Mon–Thu
+      if (day >= 1 && day <= 4) {
+        if (time < 8 || time > 22) currentRestriction = true;
+        return {
+          message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 22 h.",
+          color: "orange",
+          current: currentRestriction
+        };
+      }
+
+      // ii. Fri & Sat
+      if (day === 5 || day === 6) {
+        if (time < 8 || time > 17) currentRestriction = true;
+        return {
+          message: "Aujourd'hui, les circuits sont interdits avant 8 h et après 17 h.",
+          color: "orange",
+          current: currentRestriction
+        };
+      }
+
+      // iii. Sun July 1 – Aug 15
+      if (day === 0 && isBetween(today, 7, 1, 8, 15)) {
+        return {
+          message: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
+          color: "orange",
+          current: true
+        };
+      }
+
+      // iv. Every other Sunday May–June & Aug 16–Oct 15
+      if (day === 0 && (isBetween(today, 5, 1, 6, 30) || isBetween(today, 8, 16, 10, 15))) {
+        if (isEvenSunday(today)) {
+          if (time < 10 || time > 17) currentRestriction = true;
+          return {
+            message: "Aujourd'hui est un dimanche autorisé pour les circuits, mais seulement entre 10 h et 17 h.",
+            color: "orange",
+            current: currentRestriction
+          };
+        } else {
+          return {
+            message: "Aujourd'hui est un dimanche sans circuits (1 dimanche sur 2).",
+            color: "orange",
+            current: true
+          };
+        }
+      }
+
+      return { message, color: "green", current: false };
+    }
+
+    function updateDashboard() {
+      const now = new Date();
+      const restriction = getRestrictions(now);
+
+      const descEl = document.getElementById("restrictionDescription");
+      descEl.textContent = `AUJOURD'HUI : ${restriction.message}`;
+      descEl.className = `status ${restriction.color}`;
+
+      const currentEl = document.getElementById("currentStatus");
+      if (restriction.color === "green") {
+        currentEl.textContent = "✅ Les circuits sont permis en ce moment.";
+        currentEl.className = "status green";
+      } else if (restriction.current) {
+        currentEl.textContent = "⛔️ Les circuits sont INTERDITS en ce moment.";
+        currentEl.className = "status red";
+      } else {
+        currentEl.textContent = "✅ Les circuits sont permis en ce moment.";
+        currentEl.className = "status green";
+      }
+    }
+
+    updateDashboard();
+    setInterval(updateDashboard, 60 * 1000); // Refresh every minute
   </script>
 </body>
 </html>
