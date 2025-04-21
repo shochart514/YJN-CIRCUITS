@@ -41,6 +41,12 @@
       box-sizing: border-box;
     }
 
+    #currentTimeDisplay {
+      font-size: 1.2rem;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+
     button {
       cursor: pointer;
     }
@@ -80,6 +86,8 @@
     <input type="datetime-local" id="customDateTime" onchange="updateDashboardFromInput()">
   </div>
 
+  <div id="currentTimeDisplay"></div>
+
   <div id="restrictionDescription" class="status"></div>
   <div id="currentStatus" class="status"></div>
 
@@ -117,7 +125,9 @@
         friSat: "Aujourd'hui, les circuits sont interdits avant 8 h et après 17 h.",
         sundaySummer: "Aujourd'hui (dimanche entre le 1er juillet et le 15 août), les circuits sont interdits toute la journée.",
         sundayAllowed: "Aujourd'hui est un dimanche autorisé pour les circuits, mais seulement entre 10 h et 17 h.",
-        sundayProhibited: "Aujourd'hui est un dimanche sans circuits (1 dimanche sur 2)."
+        sundayProhibited: "Aujourd'hui est un dimanche sans circuits (1 dimanche sur 2).",
+        currentTime: "Heure actuelle",
+        selectedTime: "Date/heure sélectionnée"
       },
       en: {
         title: "Touch-and-Go Restrictions at CYJN",
@@ -134,7 +144,9 @@
         friSat: "Today, circuits are prohibited before 8 a.m. and after 5 p.m.",
         sundaySummer: "Today (Sunday between July 1 and August 15), circuits are not allowed all day.",
         sundayAllowed: "Today is a Sunday when circuits are allowed, but only between 10 a.m. and 5 p.m.",
-        sundayProhibited: "Today is a Sunday with no circuits (every other Sunday)."
+        sundayProhibited: "Today is a Sunday with no circuits (every other Sunday).",
+        currentTime: "Current time",
+        selectedTime: "Selected time"
       }
     };
 
@@ -205,6 +217,16 @@
       const restriction = getRestrictions(now);
       const msg = messages[currentLang];
 
+      // ⏰ Show current or selected time
+      const display = document.getElementById("currentTimeDisplay");
+      const isRealTime = !dateOverride;
+      const label = isRealTime ? msg.currentTime : msg.selectedTime;
+      const formatted = now.toLocaleString(currentLang === 'fr' ? 'fr-CA' : 'en-CA', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      display.textContent = `${label} : ${formatted}`;
+
       document.getElementById("restrictionDescription").textContent = `TODAY : ${restriction.message}`;
       document.getElementById("restrictionDescription").className = `status ${restriction.color}`;
 
@@ -249,7 +271,6 @@
       modeSelect.options[0].textContent = msg.real;
       modeSelect.options[1].textContent = msg.custom;
 
-      // Update URL
       const url = new URL(window.location);
       url.searchParams.set('lang', currentLang);
       window.history.replaceState({}, '', url);
@@ -269,7 +290,7 @@
       }
     }
 
-    // On load
+    // Initial load
     document.getElementById("language").value = currentLang;
     onLanguageChange();
     startAutoRefresh();
